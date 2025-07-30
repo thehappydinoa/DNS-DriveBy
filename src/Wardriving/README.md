@@ -260,8 +260,21 @@ If you get `Failed to connect to ESP8266: Timed out waiting for packet header`:
 
 Based on the original DNS DriveBy project. Use for educational and research purposes.
 
+## 🧹 Repository Maintenance
+
+### Cleaning Up
+
+```bash
+# Clean build artifacts and temporary data
+make clean
+
+# What gets cleaned:
+# - build/ directory
+# - *.csv data files (personal location data)
+# - Python cache files
+# - Backup files
+```
+
 ## Credits
 
 - Original DNS DriveBy design by Alex Lynd
-- Wardriving adaptation for security research
-- WiGLE format compatibility for community mapping

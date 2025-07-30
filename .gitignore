@@ -1,4 +1,33 @@
-.vscode
-.svg2shenzhen-cache
+# Build artifacts
+**/build/
+**/bin/
+*.bin
+*.elf
+*.map
+*.bak
+
+# Data files (contain personal/sensitive location data)
 *.csv
-build/
+wardrive_*.csv
+dump.bin
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Device-specific files (will be generated on device)
+wardrive_data.csv
+
+# Arduino/ESP build artifacts
+*.lock

@@ -113,12 +113,14 @@ stats:
 		python3 data_extractor.py -s; \
 	fi
 
-# Clean build files
+# Clean build files and temporary data
 .PHONY: clean
 clean:
-	@echo "Cleaning build files..."
+	@echo "Cleaning build files and temporary data..."
 	@rm -rf build/
 	@rm -f *.bak
+	@rm -rf __pycache__/
+	@rm -f *.pyc
 	@echo "Clean complete!"
 
 # Flash SPIFFS filesystem (if needed)
