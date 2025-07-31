@@ -73,7 +73,15 @@ cd src/Demo
 
 ## 📝 **Changelog**
 
-### v2.0 - Wardriving Edition ✨
+### v2.1 - GPS Time & Storage Management ✨
+
+- **NEW**: GPS time integration - accurate UTC timestamps in WiGLE data
+- **NEW**: Smart storage management with progressive warnings (400KB/500KB limits)
+- **NEW**: Real-time storage monitoring and graceful degradation
+- **IMPROVED**: Display shows GPS time status ("T:OK" indicator)
+- **IMPROVED**: Enhanced serial statistics include storage and time info
+
+### v2.0 - Wardriving Edition 
 
 - **NEW**: Complete wardriving firmware for WiFi reconnaissance
 - **NEW**: WiGLE-compatible data logging and extraction

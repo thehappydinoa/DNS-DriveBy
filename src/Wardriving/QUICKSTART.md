@@ -107,6 +107,11 @@ Scans: 0
 33.123,-117.123
 ```
 
+**⚠️ Initial Warnings (Normal):**
+
+- "No SD card!" warning (ESP8266 uses internal flash)
+- Storage limit notification (~500KB capacity)
+
 ## Step 6: Start Wardriving
 
 1. **Power on** your device
@@ -133,6 +138,20 @@ make extract
 ```bash
 make wigle-format
 ```
+
+### Monitor Storage Space
+
+```bash
+# Check storage status (includes storage info)
+make stats
+```
+
+> **Note**: The `stats` command requires the latest firmware with GPS time support (v2.1+). If the command hangs or fails, upload the latest firmware first.
+
+**🚨 Storage Alerts:**
+
+- **"LOW STORAGE"** on display = Extract data soon
+- **"STORAGE FULL!"** on display = Extract data immediately (logging stopped)
 
 ## Example Session
 

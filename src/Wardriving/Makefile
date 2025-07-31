@@ -45,7 +45,7 @@ install-deps: check-arduino-cli
 	arduino-cli lib install "TinyGPS++"
 	arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
 	@echo "Installing Python dependencies..."
-	pip3 install pyserial
+	uv sync
 	@echo "Dependencies installed!"
 
 # ESP32 build and upload
@@ -98,9 +98,9 @@ monitor:
 extract:
 	@echo "Extracting wardriving data..."
 	@if [ -n "$(PORT)" ]; then \
-		python3 data_extractor.py -p $(PORT); \
+		uv run python3 data_extractor.py -p $(PORT); \
 	else \
-		python3 data_extractor.py; \
+		uv run python3 data_extractor.py; \
 	fi
 
 # Show statistics only
@@ -108,9 +108,9 @@ extract:
 stats:
 	@echo "Getting wardriving statistics..."
 	@if [ -n "$(PORT)" ]; then \
-		python3 data_extractor.py -p $(PORT) -s; \
+		uv run python3 data_extractor.py -p $(PORT) -s; \
 	else \
-		python3 data_extractor.py -s; \
+		uv run python3 data_extractor.py -s; \
 	fi
 
 # Clean build files and temporary data
@@ -147,14 +147,14 @@ backup:
 	@echo "Backing up current wardriving data..."
 	@mkdir -p backups
 	@timestamp=$$(date +%Y%m%d_%H%M%S); \
-	python3 data_extractor.py -o "backups/wardrive_backup_$$timestamp.csv" $(if $(PORT),-p $(PORT))
+	uv run python3 data_extractor.py -o "backups/wardrive_backup_$$timestamp.csv" $(if $(PORT),-p $(PORT))
 	@echo "Backup complete!"
 
 # Format data for WiGLE upload
 .PHONY: wigle-format
 wigle-format:
 	@echo "Extracting data in WiGLE format..."
-	@python3 data_extractor.py -o "wigle_upload_$$(date +%Y%m%d_%H%M%S).csv" $(if $(PORT),-p $(PORT))
+	@uv run python3 data_extractor.py -o "wigle_upload_$$(date +%Y%m%d_%H%M%S).csv" $(if $(PORT),-p $(PORT))
 	@echo "WiGLE format file ready for upload!"
 
 # Test connection to device
@@ -163,7 +163,7 @@ test-connection:
 	@echo "Testing connection to device..."
 	@if [ -n "$(PORT)" ]; then \
 		echo "Testing $(PORT)..."; \
-		python3 -c "import serial; s=serial.Serial('$(PORT)', $(BAUD_RATE), timeout=2); print('Connection OK' if s.is_open else 'Connection Failed'); s.close()"; \
+		uv run python3 -c "import serial; s=serial.Serial('$(PORT)', $(BAUD_RATE), timeout=2); print('Connection OK' if s.is_open else 'Connection Failed'); s.close()"; \
 	else \
 		echo "No port specified. Use: make test-connection PORT=/dev/ttyUSB0"; \
 	fi

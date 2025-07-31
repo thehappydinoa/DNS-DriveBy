@@ -6,10 +6,12 @@ This firmware repurposes your DNS DriveBy hardware for WiFi and Bluetooth wardri
 
 - **WiFi Scanning**: Detects all WiFi networks with MAC, SSID, encryption, signal strength, and location
 - **Bluetooth Scanning**: Detects Bluetooth devices (ESP32 only)
-- **GPS Integration**: Records precise coordinates for all detected devices
-- **WiGLE Format**: Outputs data in standard WiGLE CSV format
-- **Real-time Display**: Shows scanning progress and statistics on OLED display
-- **SPIFFS Storage**: Stores data on device flash memory
+- **GPS Integration**: Records precise coordinates and accurate UTC timestamps for all detected devices
+- **WiGLE Format**: Outputs data in standard WiGLE CSV format with real GPS time
+- **Real-time Display**: Shows scanning progress, statistics, and storage warnings on OLED display
+- **Smart Storage Management**: Automatic warnings at 400KB, stops logging at 500KB limit
+- **Storage Monitoring**: Real-time storage space tracking and alerts
+- **LittleFS Storage**: Stores data on device flash memory (ESP8266) or SPIFFS (ESP32)
 
 ## Hardware Compatibility
 
@@ -23,6 +25,7 @@ This firmware repurposes your DNS DriveBy hardware for WiFi and Bluetooth wardri
 
 - WiFi scanning ✅
 - Bluetooth scanning ❌ (hardware limitation)
+- **Storage limit**: ~500KB internal flash (extract data regularly)
 
 ## Installation
 
@@ -104,6 +107,34 @@ BT: 567              <- Total Bluetooth devices (ESP32 only)
 Scans: 42            <- Number of scan cycles completed
 33.123,-117.456      <- Current coordinates
 ```
+
+### Storage Management
+
+The device automatically manages storage space:
+
+#### ⚠️ **Storage Warnings**
+- **400KB reached**: Display shows "LOW STORAGE" warning
+- **500KB reached**: Stops logging, displays "STORAGE FULL!"
+- **No SD card**: Shows warning about limited internal storage
+
+#### 📊 **Monitor Storage**
+```bash
+# Check storage status via serial
+STATS
+```
+
+Output includes:
+```
+Storage Free: 245760 bytes
+CSV File Size: 156432 bytes
+Storage Full: false
+```
+
+#### 🚨 **When Storage is Full**
+1. **Data logging stops** (but scanning continues for serial monitoring)
+2. **Extract data immediately**: Use `python3 data_extractor.py`
+3. **Clear data**: Send `DELETE_DATA` command to reset
+4. **Resume logging**: Automatic after clearing data
 
 ### Data Extraction
 

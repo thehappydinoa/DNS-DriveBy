@@ -78,6 +78,54 @@ class WardrivingDataExtractor:
         print("[-] Timeout waiting for file data")
         return None
     
+    def get_device_stats(self):
+        """Get statistics directly from device using STATS command"""
+        if not self.ser:
+            print("[-] Not connected to device")
+            return None
+            
+        # Send STATS command
+        command = "STATS\n"
+        self.ser.write(command.encode())
+        self.ser.flush()
+        time.sleep(1)  # Give device time to process
+        
+        stats_data = {}
+        start_time = time.time()
+        timeout = 10  # 10 second timeout
+        
+        while time.time() - start_time < timeout:
+            while self.ser.in_waiting:
+                try:
+                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                    if line:
+                        if line == 'STATS_START':
+                            # Start collecting stats
+                            continue
+                        elif line == 'STATS_END':
+                            return stats_data
+                        elif ':' in line:
+                            # Parse stat line
+                            key, value = line.split(':', 1)
+                            stats_data[key.strip()] = value.strip()
+                except UnicodeDecodeError:
+                    continue
+            time.sleep(0.1)
+                
+        print("[-] Timeout waiting for stats data")
+        return None
+    
+    def print_device_statistics(self, stats):
+        """Print device statistics in a nice format"""
+        if not stats:
+            print("[-] No statistics available")
+            return
+            
+        print("\n=== DEVICE STATISTICS ===")
+        for key, value in stats.items():
+            print(f"{key}: {value}")
+        print("=" * 30)
+    
     def calculate_distance(self, lat1, lon1, lat2, lon2):
         """Calculate distance between two GPS coordinates in meters"""
         if lat1 == 0 or lon1 == 0 or lat2 == 0 or lon2 == 0:
@@ -334,32 +382,43 @@ def main():
         if not extractor.connect():
             sys.exit(1)
         
-        print("[+] Reading wardriving data...")
-        data = extractor.read_spiffs_file()
-        
-        if not data:
-            print("[-] No data received from device")
-            sys.exit(1)
-        
-        # Validate format
-        if not extractor.validate_wigle_format(data):
-            print("[-] Data format validation failed")
-            sys.exit(1)
-        
-        # Apply deduplication if not disabled
-        if not args.no_dedupe:
-            data = extractor.deduplicate_data(
-                data, 
-                args.distance_threshold, 
-                args.rssi_threshold, 
-                args.time_threshold
-            )
-        
-        # Get statistics
-        stats = extractor.get_statistics(data)
-        extractor.print_statistics(stats)
-        
-        if not args.stats:
+        if args.stats:
+            # Stats-only mode: get device statistics directly
+            print("[+] Getting device statistics...")
+            device_stats = extractor.get_device_stats()
+            
+            if device_stats:
+                extractor.print_device_statistics(device_stats)
+            else:
+                print("[-] Failed to get device statistics")
+                sys.exit(1)
+        else:
+            # Full data extraction mode
+            print("[+] Reading wardriving data...")
+            data = extractor.read_spiffs_file()
+            
+            if not data:
+                print("[-] No data received from device")
+                sys.exit(1)
+            
+            # Validate format
+            if not extractor.validate_wigle_format(data):
+                print("[-] Data format validation failed")
+                sys.exit(1)
+            
+            # Apply deduplication if not disabled
+            if not args.no_dedupe:
+                data = extractor.deduplicate_data(
+                    data, 
+                    args.distance_threshold, 
+                    args.rssi_threshold, 
+                    args.time_threshold
+                )
+            
+            # Get statistics from data
+            stats = extractor.get_statistics(data)
+            extractor.print_statistics(stats)
+            
             # Save data (deduplication already applied above)
             if extractor.save_data(data, args.output, dedupe=False):
                 print("[+] Data extraction completed successfully!")
