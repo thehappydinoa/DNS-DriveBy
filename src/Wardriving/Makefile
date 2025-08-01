@@ -39,11 +39,14 @@ check-arduino-cli:
 .PHONY: install-deps
 install-deps: check-arduino-cli
 	@echo "Installing Arduino dependencies..."
+	@echo "Adding ESP8266 board manager URL..."
+	arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json || true
 	arduino-cli core update-index
 	arduino-cli core install esp32:esp32
 	arduino-cli core install esp8266:esp8266
-	arduino-cli lib install "TinyGPS++"
+	arduino-cli lib install "TinyGPSPlusPlus"
 	arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
+	arduino-cli lib install "SH1106"
 	@echo "Installing Python dependencies..."
 	uv sync
 	@echo "Dependencies installed!"
@@ -53,13 +56,13 @@ install-deps: check-arduino-cli
 esp32: check-arduino-cli
 	@echo "Building for ESP32..."
 	@sed -i.bak 's|^//\s*#define BOARD_ESP32|#define BOARD_ESP32|' Wardriving.ino
-	arduino-cli compile --fqbn $(BOARD_ESP32) Wardriving.ino
+	arduino-cli compile -b esp32:esp32:esp32dev Wardriving.ino
 	@if [ -n "$(PORT)" ]; then \
 		echo "Uploading to $(PORT)..."; \
-		arduino-cli upload -p $(PORT) --fqbn $(BOARD_ESP32) Wardriving.ino; \
+		arduino-cli upload -b esp32:esp32:esp32dev --port $(PORT) Wardriving.ino; \
 	elif [ -n "$(PORT_AUTO)" ]; then \
 		echo "Auto-detected port: $(PORT_AUTO)"; \
-		arduino-cli upload -p $(PORT_AUTO) --fqbn $(BOARD_ESP32) Wardriving.ino; \
+		arduino-cli upload -b esp32:esp32:esp32dev --port $(PORT_AUTO) Wardriving.ino; \
 	else \
 		echo "No port specified and none auto-detected. Use: make esp32 PORT=/dev/ttyUSB0"; \
 	fi
@@ -69,13 +72,34 @@ esp32: check-arduino-cli
 esp8266: check-arduino-cli
 	@echo "Building for ESP8266..."
 	@sed -i.bak 's|^#define BOARD_ESP32|//#define BOARD_ESP32|' Wardriving.ino
-	arduino-cli compile --fqbn $(BOARD_ESP8266) Wardriving.ino
+	arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino
 	@if [ -n "$(PORT)" ]; then \
 		echo "Uploading to $(PORT)..."; \
-		arduino-cli upload -p $(PORT) --fqbn $(BOARD_ESP8266) Wardriving.ino; \
+		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT) Wardriving.ino; \
 	elif [ -n "$(PORT_AUTO)" ]; then \
 		echo "Auto-detected port: $(PORT_AUTO)"; \
-		arduino-cli upload -p $(PORT_AUTO) --fqbn $(BOARD_ESP8266) Wardriving.ino; \
+		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT_AUTO) Wardriving.ino; \
+	else \
+		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
+		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
+	fi
+	else \
+		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
+	fi
+
+# ESP8266 Upload only
+.PHONY: esp8266-upload
+esp8266-upload: check-arduino-cli
+	@if [ -n "$(PORT)" ]; then \
+		echo "Uploading to $(PORT)..."; \
+		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT) Wardriving.ino; \
+	elif [ -n "$(PORT_AUTO)" ]; then \
+		echo "Auto-detected port: $(PORT_AUTO)"; \
+		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT_AUTO) Wardriving.ino; \
+	else \
+		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
+		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
+	fi
 	else \
 		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
 	fi
@@ -85,10 +109,10 @@ esp8266: check-arduino-cli
 monitor:
 	@if [ -n "$(PORT)" ]; then \
 		echo "Opening serial monitor on $(PORT) at $(BAUD_RATE) baud..."; \
-		arduino-cli monitor -p $(PORT) -c baudrate=$(BAUD_RATE); \
+		arduino-cli monitor --port $(PORT) -c baudrate=$(BAUD_RATE); \
 	elif [ -n "$(PORT_AUTO)" ]; then \
 		echo "Auto-detected port: $(PORT_AUTO)"; \
-		arduino-cli monitor -p $(PORT_AUTO) -c baudrate=$(BAUD_RATE); \
+		arduino-cli monitor --port $(PORT_AUTO) -c baudrate=$(BAUD_RATE); \
 	else \
 		echo "No port specified and none auto-detected. Use: make monitor PORT=/dev/ttyUSB0"; \
 	fi

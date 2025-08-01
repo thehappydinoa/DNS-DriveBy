@@ -44,6 +44,75 @@ cd src/Demo
 # Follow original build instructions
 ```
 
+## 📦 **Installation**
+
+### Debian/Ubuntu/Linux
+
+1. **Install Arduino CLI and dependencies:**
+   ```bash
+   # Install required packages
+   sudo apt update
+   sudo apt install -y curl git make
+
+   # Install uv
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   uv sync
+   
+   # Install Arduino CLI
+   curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+   sudo mv bin/arduino-cli /usr/local/bin/
+   rm -rf bin/
+   ```
+
+2. **Install ESP8266 board support:**
+   ```bash
+   # Add ESP8266 board manager URL
+   arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+   arduino-cli core update-index
+   arduino-cli core install esp8266:esp8266
+   ```
+
+3. **Install Python dependencies (for data extraction):**
+   ```bash
+   cd src/Wardriving
+   ```
+
+4. **Verify installation:**
+   ```bash
+   arduino-cli version
+   arduino-cli board list
+   ```
+
+5. **Fix USB permissions (IMPORTANT):**
+   ```bash
+   # Option 1: Add user to dialout group (requires logout/login)
+   sudo usermod -a -G dialout $USER
+   
+   # Option 2: Create udev rule for ESP8266 (recommended)
+   echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE="0666"' | sudo tee /etc/udev/rules.d/99-esp8266.rules
+   sudo udevadm control --reload-rules && sudo udevadm trigger
+   
+   # Option 3: Use sudo for upload (if above doesn't work)
+   sudo make esp8266 PORT=/dev/ttyUSB0
+   ```
+
+6. **Find your device port:**
+   ```bash
+   # List all USB devices
+   lsusb
+   
+   # List serial ports
+   ls /dev/ttyUSB* /dev/ttyACM*
+   
+   # Or use arduino-cli to detect boards
+   arduino-cli board list
+   
+   # Monitor serial output (replace /dev/ttyUSB0 with your port)
+   arduino-cli monitor --port /dev/ttyUSB0
+   ```
+
+**Note:** For other Linux distributions, the package names may vary. For Arch Linux, use `pacman -S arduino-cli` instead of the curl installation method.
+
 ## 📁 **Project Structure**
 
 ```bash
