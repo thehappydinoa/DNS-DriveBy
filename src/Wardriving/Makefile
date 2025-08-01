@@ -18,6 +18,8 @@ help:
 	@echo "  esp8266      - Build and upload for ESP8266"
 	@echo "  monitor      - Open serial monitor"
 	@echo "  extract      - Extract data from device"
+	@echo "  delete-data  - Delete all wardriving data"
+	@echo "  stats        - Show device statistics"
 	@echo "  clean        - Clean build files"
 	@echo "  install-deps - Install required dependencies"
 	@echo ""
@@ -67,9 +69,15 @@ esp32: check-arduino-cli
 		echo "No port specified and none auto-detected. Use: make esp32 PORT=/dev/ttyUSB0"; \
 	fi
 
+# Update firmware version with git hash
+.PHONY: update-version
+update-version:
+	@echo "Updating firmware version with git hash..."
+	@python3 update_version.py
+
 # ESP8266 build and upload
 .PHONY: esp8266
-esp8266: check-arduino-cli
+esp8266: check-arduino-cli update-version
 	@echo "Building for ESP8266..."
 	@sed -i.bak 's|^#define BOARD_ESP32|//#define BOARD_ESP32|' Wardriving.ino
 	arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino
@@ -82,9 +90,6 @@ esp8266: check-arduino-cli
 	else \
 		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
 		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
-	fi
-	else \
-		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
 	fi
 
 # ESP8266 Upload only
@@ -99,9 +104,6 @@ esp8266-upload: check-arduino-cli
 	else \
 		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
 		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
-	fi
-	else \
-		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
 	fi
 
 # Serial monitor
@@ -135,6 +137,31 @@ stats:
 		uv run python3 data_extractor.py -p $(PORT) -s; \
 	else \
 		uv run python3 data_extractor.py -s; \
+	fi
+
+# Delete all wardriving data
+.PHONY: delete-data
+delete-data:
+	@echo "Deleting all wardriving data..."
+	@if [ -n "$(PORT)" ]; then \
+		echo "DELETE_DATA" | sudo tee $(PORT) > /dev/null; \
+		echo "Data deletion command sent to $(PORT)"; \
+		echo "Check monitor to confirm deletion"; \
+	else \
+		echo "No port specified. Use: make delete-data PORT=/dev/ttyUSB0"; \
+	fi
+
+# Delete data and show confirmation
+.PHONY: delete-data-monitor
+delete-data-monitor:
+	@echo "Deleting data and showing confirmation..."
+	@if [ -n "$(PORT)" ]; then \
+		echo "DELETE_DATA" | sudo tee $(PORT) > /dev/null; \
+		echo "Data deletion command sent. Opening monitor to confirm..."; \
+		sleep 2; \
+		sudo make monitor PORT=$(PORT); \
+	else \
+		echo "No port specified. Use: make delete-data-monitor PORT=/dev/ttyUSB0"; \
 	fi
 
 # Clean build files and temporary data

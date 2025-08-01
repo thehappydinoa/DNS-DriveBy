@@ -1,5 +1,11 @@
 //#define BOARD_ESP32 // Comment this out if using ESP8266
 
+// Firmware Version Information
+#define FIRMWARE_VERSION "2.2.0-5a3f058"
+#define FIRMWARE_NAME "DNS-DriveBy Wardriving"
+#define BUILD_DATE __DATE__
+#define BUILD_TIME __TIME__
+
 #include <ESP8266WiFi.h>
 #include <LittleFS.h>
 #include <SH1106Wire.h>
@@ -161,9 +167,10 @@ void initializeDisplay() {
   
   // Simple startup message
   display.clear();
-  display.drawString(0, 0, "DNS DriveBy");
-  display.drawString(0, 12, "WORKING!");
-  display.drawString(0, 24, "GPIO4/5");
+  display.drawString(0, 0, FIRMWARE_NAME);
+  display.drawString(0, 12, "v" FIRMWARE_VERSION);
+  display.drawString(0, 24, "ESP8266 D1 Mini");
+  display.drawString(0, 36, "GPIO4/5 I2C");
   display.display();
   
   Serial.println("[+] OLED display ready!");
@@ -387,8 +394,10 @@ void setup() {
   delay(1000);
   
   Serial.println("\n*********************************");
-  Serial.println("   WiFi Wardriving - OPTIMIZED!");
-  Serial.println("   Display: Memory Efficient");
+  Serial.println("   " FIRMWARE_NAME);
+  Serial.println("   Version: " FIRMWARE_VERSION);
+  Serial.println("   Build: " BUILD_DATE " " BUILD_TIME);
+  Serial.println("   Hardware: ESP8266 D1 Mini");
   Serial.println("*********************************");
   
   // Initialize display with correct pins
