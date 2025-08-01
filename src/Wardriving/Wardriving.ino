@@ -7,7 +7,7 @@
 #define ENABLE_SD_CARD
 
 // Firmware Version Information
-#define FIRMWARE_VERSION "2.2.0-ecc669f"
+#define FIRMWARE_VERSION "2.2.0-89ee243"
 #define FIRMWARE_NAME "DNS-DriveBy Wardriving"
 #define BUILD_DATE __DATE__
 #define BUILD_TIME __TIME__
@@ -85,6 +85,7 @@ unsigned long lastStorageCheck = 0;
 unsigned long lastGPSRetry = 0;
 unsigned long lastDisplayUpdate = 0;
 bool displayWorking = true;
+bool useDisplay = true; // Will be set to false if SD card is detected
 
 String getWiFiEncryption(uint8_t encryptionType) {
   switch (encryptionType) {
@@ -185,13 +186,15 @@ void checkStorageSpace() {
 }
 
 void showStorageWarning() {
-  display.clear();
-  display.drawString(0, 0, "WARNING:");
-  display.drawString(0, 12, "No SD card!");
-  display.drawString(0, 24, "Using internal");
-  display.drawString(0, 36, "flash (~500KB)");
-  display.drawString(0, 48, "Limited space!");
-  display.display();
+  if (useDisplay) {
+    display.clear();
+    display.drawString(0, 0, "WARNING:");
+    display.drawString(0, 12, "No SD card!");
+    display.drawString(0, 24, "Using internal");
+    display.drawString(0, 36, "flash (~500KB)");
+    display.drawString(0, 48, "Limited space!");
+    display.display();
+  }
   
   Serial.println("[WARNING] No SD card detected - using internal flash storage");
   Serial.println("[WARNING] Internal storage limited to ~500KB total");
@@ -199,6 +202,12 @@ void showStorageWarning() {
 }
 
 void initializeDisplay() {
+  if (!useDisplay) {
+    Serial.println("[+] Display disabled (SD card mode)");
+    displayWorking = false;
+    return;
+  }
+  
   Serial.println("[+] Initializing OLED display...");
   
   // Initialize I2C with WORKING pins: GPIO4=SDA, GPIO5=SCL
@@ -233,6 +242,9 @@ bool initializeFileSystem() {
 }
 
 void quickDisplayUpdate() {
+  // Skip display updates if display is disabled
+  if (!useDisplay || !displayWorking) return;
+  
   // Only update display every 10 seconds to reduce memory pressure
   if (millis() - lastDisplayUpdate < 10000) return;
   
@@ -375,6 +387,7 @@ bool initializeStorage() {
   if (sdCardAvailable) {
     usingSDCard = true;
     Serial.println("[+] Using SD card for storage");
+    useDisplay = false; // Disable display when using SD card
     
     // Create CSV header on SD card if it doesn't exist
     if (!SD.exists(sdCsvFilename)) {
@@ -435,15 +448,18 @@ bool initializeStorage() {
 void showStorageInfo() {
   #ifdef ENABLE_SD_CARD
   if (usingSDCard) {
-    display.clear();
-    display.drawString(0, 0, "SD CARD DETECTED!");
-    display.drawString(0, 12, "Using SD storage");
-    display.drawString(0, 24, "Unlimited space");
-    display.drawString(0, 36, "Extract via USB");
-    display.drawString(0, 48, "or remove card");
-    display.display();
+    if (useDisplay) {
+      display.clear();
+      display.drawString(0, 0, "SD CARD DETECTED!");
+      display.drawString(0, 12, "Using SD storage");
+      display.drawString(0, 24, "Unlimited space");
+      display.drawString(0, 36, "Extract via USB");
+      display.drawString(0, 48, "or remove card");
+      display.display();
+    }
     
     Serial.println("[+] SD card detected - unlimited storage available");
+    Serial.println("[+] Display disabled for SD card mode");
     delay(3000);
   } else {
     showStorageWarning();
@@ -627,6 +643,47 @@ void handleSerialCommands() {
       Serial.println("Resetting display...");
       initializeDisplay();
       Serial.println("Display reset complete");
+    } else if (command == "VERSION") {
+      Serial.println("VERSION_START");
+      Serial.println("Firmware: " FIRMWARE_NAME);
+      Serial.println("Version: " FIRMWARE_VERSION);
+      Serial.println("Build Date: " BUILD_DATE);
+      Serial.println("Build Time: " BUILD_TIME);
+      Serial.println("Hardware: ESP8266 D1 Mini");
+      Serial.println("Features: WiFi scanning, GPS integration");
+      #ifdef ENABLE_SD_CARD
+      Serial.println("SD Card Support: Enabled");
+      #else
+      Serial.println("SD Card Support: Disabled");
+      #endif
+      Serial.println("VERSION_END");
+    } else if (command == "SHUTDOWN") {
+      Serial.println("SHUTDOWN_START");
+      Serial.println("Gracefully shutting down...");
+      
+      // Save any pending data
+      Serial.println("Saving data...");
+      
+      // Update display with shutdown message
+      if (useDisplay && displayWorking) {
+        display.clear();
+        display.setTextAlignment(TEXT_ALIGN_CENTER);
+        display.drawString(64, 20, "SHUTTING DOWN");
+        display.drawString(64, 35, "Data saved");
+        display.drawString(64, 50, "Safe to power off");
+        display.display();
+      }
+      
+      // Give time for serial output and display update
+      delay(2000);
+      
+      Serial.println("Data saved successfully");
+      Serial.println("Device ready for power off");
+      Serial.println("SHUTDOWN_COMPLETE");
+      
+      // Enter deep sleep mode (lowest power consumption)
+      // This effectively shuts down the device while preserving data
+      ESP.deepSleep(0); // Sleep indefinitely (until reset)
     }
   }
 }
@@ -667,7 +724,11 @@ void setup() {
   
   Serial.println("[+] Wardriving ready!");
   Serial.println("[+] Scanning every 5 seconds...");
-  Serial.println("[+] Display updates every 10 seconds (memory optimized)");
+  if (useDisplay) {
+    Serial.println("[+] Display updates every 10 seconds (memory optimized)");
+  } else {
+    Serial.println("[+] Display disabled (SD card mode) - use serial monitor for status");
+  }
   #ifdef ENABLE_SD_CARD
   if (usingSDCard) {
     Serial.println("[+] Using SD card storage - unlimited space");

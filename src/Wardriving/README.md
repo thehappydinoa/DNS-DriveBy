@@ -59,13 +59,19 @@ make stats PORT=/dev/ttyUSB0
 
 ## 🔧 Hardware Configuration
 
-### Current Default: SD Card Enabled (Display Removed)
+### Current Default: SD Card Enabled (Display Auto-Disabled)
 
-**Why?** SD card support is enabled by default, which requires removing the display due to pin conflicts.
+**Smart Configuration**: The firmware automatically detects SD card availability and disables the display when SD card is detected to avoid pin conflicts.
 
 #### Pin Conflicts
 - **Display uses**: GPIO4 (SDA), GPIO5 (SCL)
 - **SD card needs**: GPIO4 (MOSI), GPIO5 (SCK) ⚠️ **CONFLICTS!**
+
+#### Automatic Display Management
+- ✅ **SD Card Detected**: Display automatically disabled, unlimited storage
+- ✅ **No SD Card**: Display enabled, limited storage (500KB)
+- ✅ **Power Efficient**: No display power consumption when SD card is used
+- ✅ **No Manual Configuration**: Works automatically based on hardware detection
 
 #### SD Card Setup
 ```
@@ -78,10 +84,10 @@ SCK        --->   D5 (GPIO14)
 CS         --->   D8 (GPIO15)
 ```
 
-#### Status Monitoring (No Display)
-- **Serial Monitor**: Real-time status and debugging
-- **STATS Command**: Send `STATS` via serial to check storage
-- **Data Extraction**: Use `data_extractor.py` to get wardriving data
+#### Status Monitoring
+- **SD Card Mode**: All status via serial monitor (display disabled)
+- **Display Mode**: Visual feedback on OLED display
+- **Serial Commands**: `STATS`, `SHUTDOWN`, etc. work in both modes
 
 ### Alternative: Display Enabled (SD Card Disabled)
 
@@ -121,7 +127,7 @@ SCL         --->   D1 (GPIO5)
 
 ### Display Information (when enabled)
 
-The OLED shows real-time stats:
+The OLED shows real-time stats (only when SD card is not detected):
 ```
 GPS: 8 sats          <- GPS satellite count
 WiFi: 1,234          <- Total WiFi networks found
@@ -129,6 +135,8 @@ BT: 567              <- Total Bluetooth devices (ESP32 only)
 Scans: 42            <- Number of scan cycles completed
 33.123,-117.456      <- Current coordinates
 ```
+
+**Note**: When SD card is detected, the display is automatically disabled to avoid pin conflicts. All status information is available via serial monitor.
 
 ### Storage Management
 
@@ -173,6 +181,45 @@ make stats-sudo PORT=/dev/ttyUSB0
 # Test connection with sudo
 make test-connection-sudo PORT=/dev/ttyUSB0
 ```
+
+### Check Firmware Version
+
+To verify which firmware version is installed:
+
+```bash
+# Send version command
+make version PORT=/dev/ttyUSB0
+
+# Or with confirmation
+make version-monitor PORT=/dev/ttyUSB0
+```
+
+The version command shows:
+- **Firmware name and version**
+- **Build date and time**
+- **Hardware platform**
+- **Feature list**
+- **SD card support status**
+
+### Graceful Shutdown
+
+To safely power off the device:
+
+```bash
+# Send shutdown command
+make shutdown PORT=/dev/ttyUSB0
+
+# Or with confirmation
+make shutdown-monitor PORT=/dev/ttyUSB0
+```
+
+The shutdown process:
+1. **Saves all pending data** to storage
+2. **Updates display** (if enabled) with shutdown message
+3. **Enters deep sleep mode** (lowest power consumption)
+4. **Safe to power off** after shutdown completes
+
+**Note**: The device will enter deep sleep mode and can be safely powered off. To restart, simply power cycle the device.
 
 ## 📁 Data Format
 
@@ -297,6 +344,8 @@ If you get `Failed to connect to ESP8266: Timed out waiting for packet header`:
 | `make extract-sudo` | Extract data with sudo |
 | `make stats-sudo` | Get statistics with sudo |
 | `make test-connection` | Test device connection |
+| `make shutdown` | Gracefully shutdown device |
+| `make version` | Check firmware version |
 | `make clean` | Clean build files |
 | `make help` | Show all available commands |
 

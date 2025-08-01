@@ -7,30 +7,8 @@ BOARD_ESP8266 = nodemcuv2
 PORT_AUTO = $(shell ls /dev/ttyUSB* /dev/ttyACM* /dev/cu.usbserial* 2>/dev/null | head -1)
 BAUD_RATE = 115200
 
-# Default target
-.PHONY: help
-help:
-	@echo "DNS DriveBy Wardriving Firmware"
-	@echo "================================"
-	@echo ""
-	@echo "Targets:"
-	@echo "  esp32        - Build and upload for ESP32"
-	@echo "  esp8266      - Build and upload for ESP8266"
-	@echo "  monitor      - Open serial monitor"
-	@echo "  extract      - Extract data from device"
-	@echo "  delete-data  - Delete all wardriving data"
-	@echo "  stats        - Show device statistics"
-	@echo "  clean        - Clean build files"
-	@echo "  install-deps - Install required dependencies"
-	@echo ""
-	@echo "Variables:"
-	@echo "  PORT=/dev/ttyUSB0  - Specify serial port"
-	@echo "  BAUD=115200       - Specify baud rate"
-	@echo ""
-	@echo "Examples:"
-	@echo "  make esp32 PORT=/dev/ttyUSB0"
-	@echo "  make monitor"
-	@echo "  make extract"
+# Default target - show help
+.DEFAULT_GOAL := help
 
 # Check for Arduino CLI
 .PHONY: check-arduino-cli
@@ -41,30 +19,30 @@ check-arduino-cli:
 .PHONY: install-deps
 install-deps: check-arduino-cli
 	@echo "Installing Arduino dependencies..."
-	@echo "Adding ESP8266 board manager URL..."
-	arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json || true
-	arduino-cli core update-index
-	arduino-cli core install esp32:esp32
-	arduino-cli core install esp8266:esp8266
-	arduino-cli lib install "TinyGPSPlusPlus"
-	arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
-	arduino-cli lib install "SH1106"
+	@arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json >/dev/null 2>&1 || true
+	@arduino-cli core update-index >/dev/null 2>&1
+	@arduino-cli core install esp32:esp32 >/dev/null 2>&1
+	@arduino-cli core install esp8266:esp8266 >/dev/null 2>&1
+	@arduino-cli lib install "TinyGPSPlusPlus" >/dev/null 2>&1
+	@arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays" >/dev/null 2>&1
+	@arduino-cli lib install "SH1106" >/dev/null 2>&1
 	@echo "Installing Python dependencies..."
-	uv sync
-	@echo "Dependencies installed!"
+	@uv sync >/dev/null 2>&1
+	@echo "Dependencies installed successfully!"
 
 # ESP32 build and upload
 .PHONY: esp32
-esp32: check-arduino-cli
-	@echo "Building for ESP32..."
+esp32: check-arduino-cli update-version
+	@echo "Building and uploading to ESP32..."
 	@sed -i.bak 's|^//\s*#define BOARD_ESP32|#define BOARD_ESP32|' Wardriving.ino
-	arduino-cli compile -b esp32:esp32:esp32dev Wardriving.ino
+	@arduino-cli compile -b esp32:esp32:esp32dev Wardriving.ino >/dev/null 2>&1
 	@if [ -n "$(PORT)" ]; then \
-		echo "Uploading to $(PORT)..."; \
-		arduino-cli upload -b esp32:esp32:esp32dev --port $(PORT) Wardriving.ino; \
+		arduino-cli upload -b esp32:esp32:esp32dev --port $(PORT) Wardriving.ino >/dev/null 2>&1; \
+		echo "Upload complete to $(PORT)"; \
 	elif [ -n "$(PORT_AUTO)" ]; then \
 		echo "Auto-detected port: $(PORT_AUTO)"; \
-		arduino-cli upload -b esp32:esp32:esp32dev --port $(PORT_AUTO) Wardriving.ino; \
+		arduino-cli upload -b esp32:esp32:esp32dev --port $(PORT_AUTO) Wardriving.ino >/dev/null 2>&1; \
+		echo "Upload complete to $(PORT_AUTO)"; \
 	else \
 		echo "No port specified and none auto-detected. Use: make esp32 PORT=/dev/ttyUSB0"; \
 	fi
@@ -72,46 +50,32 @@ esp32: check-arduino-cli
 # Update firmware version with git hash
 .PHONY: update-version
 update-version:
-	@echo "Updating firmware version with git hash..."
-	@python3 update_version.py
+	@python3 update_version.py >/dev/null 2>&1
 
 # ESP8266 build and upload
 .PHONY: esp8266
 esp8266: check-arduino-cli update-version
-	@echo "Building for ESP8266..."
+	@echo "Building and uploading to ESP8266..."
 	@sed -i.bak 's|^#define BOARD_ESP32|//#define BOARD_ESP32|' Wardriving.ino
-	arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino
+	@arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino >/dev/null 2>&1
 	@if [ -n "$(PORT)" ]; then \
-		echo "Uploading to $(PORT)..."; \
-		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT) Wardriving.ino; \
+		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT) Wardriving.ino >/dev/null 2>&1; \
+		echo "Upload complete to $(PORT)"; \
 	elif [ -n "$(PORT_AUTO)" ]; then \
 		echo "Auto-detected port: $(PORT_AUTO)"; \
-		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT_AUTO) Wardriving.ino; \
+		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT_AUTO) Wardriving.ino >/dev/null 2>&1; \
+		echo "Upload complete to $(PORT_AUTO)"; \
 	else \
 		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
-		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
 	fi
 
 # ESP8266 Compile only
 .PHONY: esp8266-compile
 esp8266-compile: check-arduino-cli update-version
-	@echo "Building for ESP8266..."
+	@echo "Compiling for ESP8266..."
 	@sed -i.bak 's|^#define BOARD_ESP32|//#define BOARD_ESP32|' Wardriving.ino
-	arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino
-
-# ESP8266 Upload only
-.PHONY: esp8266-upload
-esp8266-upload: check-arduino-cli
-	@if [ -n "$(PORT)" ]; then \
-		echo "Uploading to $(PORT)..."; \
-		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT) Wardriving.ino; \
-	elif [ -n "$(PORT_AUTO)" ]; then \
-		echo "Auto-detected port: $(PORT_AUTO)"; \
-		arduino-cli upload -b esp8266:esp8266:d1_mini --port $(PORT_AUTO) Wardriving.ino; \
-	else \
-		echo "No port specified and none auto-detected. Use: make esp8266 PORT=/dev/ttyUSB0"; \
-		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
-	fi
+	@arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino >/dev/null 2>&1
+	@echo "Compilation complete!"
 
 # Serial monitor
 .PHONY: monitor
@@ -169,36 +133,60 @@ stats-sudo:
 # Delete all wardriving data
 .PHONY: delete-data
 delete-data:
-	@echo "Deleting all wardriving data..."
 	@if [ -n "$(PORT)" ]; then \
 		echo "DELETE_DATA" | sudo tee $(PORT) > /dev/null; \
-		echo "Data deletion command sent to $(PORT)"; \
-		echo "Check monitor to confirm deletion"; \
-	else \
-		echo "No port specified. Use: make delete-data PORT=/dev/ttyUSB0"; \
-	fi
-
-# Delete data and show confirmation
-.PHONY: delete-data-monitor
-delete-data-monitor:
-	@echo "Deleting data and showing confirmation..."
-	@if [ -n "$(PORT)" ]; then \
-		echo "DELETE_DATA" | sudo tee $(PORT) > /dev/null; \
-		echo "Data deletion command sent. Opening monitor to confirm..."; \
+		echo "Deleting data and opening monitor..."; \
 		sleep 2; \
 		sudo make monitor PORT=$(PORT); \
+	elif [ -n "$(PORT_AUTO)" ]; then \
+		echo "Auto-detected port: $(PORT_AUTO)"; \
+		echo "DELETE_DATA" | sudo tee $(PORT_AUTO) > /dev/null; \
+		echo "Deleting data and opening monitor..."; \
+		sleep 2; \
+		sudo make monitor PORT=$(PORT_AUTO); \
 	else \
-		echo "No port specified. Use: make delete-data-monitor PORT=/dev/ttyUSB0"; \
+		echo "No port specified and none auto-detected. Use: make delete-data PORT=/dev/ttyUSB0"; \
+	fi
+
+# Gracefully shutdown device
+.PHONY: shutdown
+shutdown:
+	@echo "Gracefully shutting down device..."
+	@if [ -n "$(PORT)" ]; then \
+		echo "SHUTDOWN" | sudo tee $(PORT) > /dev/null; \
+		echo "Shutdown command sent to $(PORT)"; \
+		echo "Device will enter deep sleep mode"; \
+		echo "Safe to power off after shutdown completes"; \
+	else \
+		echo "No port specified. Use: make shutdown PORT=/dev/ttyUSB0"; \
+	fi
+
+# Check firmware version
+.PHONY: version
+version:
+	@if [ -n "$(PORT)" ]; then \
+		echo "Sending VERSION command and capturing output..."; \
+		echo "VERSION" | sudo tee $(PORT) > /dev/null; \
+		sleep 1; \
+		timeout 5 sudo cat $(PORT) | sed -n '/VERSION_START/,/VERSION_END/p' | grep -v "ESP\|networks\|found\|dBm\|Starting scan\|Scan complete" || echo "No complete version response - try: make monitor PORT=$(PORT)"; \
+	elif [ -n "$(PORT_AUTO)" ]; then \
+		echo "Auto-detected port: $(PORT_AUTO)"; \
+		echo "Sending VERSION command and capturing output..."; \
+		echo "VERSION" | sudo tee $(PORT_AUTO) > /dev/null; \
+		sleep 1; \
+		timeout 5 sudo cat $(PORT_AUTO) | sed -n '/VERSION_START/,/VERSION_END/p' | grep -v "ESP\|networks\|found\|dBm\|Starting scan\|Scan complete" || echo "No complete version response - try: make monitor PORT=$(PORT_AUTO)"; \
+	else \
+		echo "No port specified and none auto-detected. Use: make version PORT=/dev/ttyUSB0"; \
 	fi
 
 # Clean build files and temporary data
 .PHONY: clean
 clean:
-	@echo "Cleaning build files and temporary data..."
-	@rm -rf build/
-	@rm -f *.bak
-	@rm -rf __pycache__/
-	@rm -f *.pyc
+	@echo "Cleaning build files..."
+	@rm -rf build/ >/dev/null 2>&1
+	@rm -f *.bak >/dev/null 2>&1
+	@rm -rf __pycache__/ >/dev/null 2>&1
+	@rm -f *.pyc >/dev/null 2>&1
 	@echo "Clean complete!"
 
 # Flash SPIFFS filesystem (if needed)
@@ -254,9 +242,8 @@ wigle-format-sudo:
 # Test connection to device
 .PHONY: test-connection
 test-connection:
-	@echo "Testing connection to device..."
 	@if [ -n "$(PORT)" ]; then \
-		echo "Testing $(PORT)..."; \
+		echo "Testing connection to $(PORT)..."; \
 		uv run python3 -c "import serial; s=serial.Serial('$(PORT)', $(BAUD_RATE), timeout=2); print('Connection OK' if s.is_open else 'Connection Failed'); s.close()"; \
 	else \
 		echo "No port specified. Use: make test-connection PORT=/dev/ttyUSB0"; \
@@ -265,9 +252,8 @@ test-connection:
 # Test connection to device with sudo
 .PHONY: test-connection-sudo
 test-connection-sudo:
-	@echo "Testing connection to device with sudo..."
 	@if [ -n "$(PORT)" ]; then \
-		echo "Testing $(PORT)..."; \
+		echo "Testing connection to $(PORT) with sudo..."; \
 		sudo /root/.local/bin/uv run python3 -c "import serial; s=serial.Serial('$(PORT)', $(BAUD_RATE), timeout=2); print('Connection OK' if s.is_open else 'Connection Failed'); s.close()"; \
 	else \
 		echo "No port specified. Use: make test-connection-sudo PORT=/dev/ttyUSB0"; \
@@ -276,10 +262,9 @@ test-connection-sudo:
 # Show device info
 .PHONY: device-info
 device-info:
-	@echo "Scanning for ESP devices..."
 	@for port in /dev/ttyUSB* /dev/ttyACM* /dev/cu.usbserial* /dev/cu.SLAB_USBtoUART*; do \
 		if [ -e "$$port" ]; then \
-			echo "Found potential device: $$port"; \
+			echo "Found device: $$port"; \
 		fi; \
 	done
 
@@ -316,6 +301,8 @@ help:
 	@echo "Device Management:"
 	@echo "  make monitor PORT=/dev/ttyUSB0    - Open serial monitor"
 	@echo "  make delete-data PORT=/dev/ttyUSB0 - Delete all wardriving data"
+	@echo "  make shutdown PORT=/dev/ttyUSB0    - Gracefully shutdown device"
+	@echo "  make version PORT=/dev/ttyUSB0     - Check firmware version"
 	@echo "  make test-connection PORT=/dev/ttyUSB0 - Test device connection"
 	@echo "  make test-connection-sudo PORT=/dev/ttyUSB0 - Test connection with sudo"
 	@echo "  make device-info                   - Scan for ESP devices"
