@@ -239,35 +239,54 @@ class WardrivingDataExtractor:
             return False
     
     def validate_wigle_format(self, data):
-        """Validate that the data is in proper WiGLE format"""
+        """Validate that the data is in proper WiGLE format or simple CSV format"""
         if not data or len(data) < 2:
             print("[-] Insufficient data for validation")
             return False
             
-        # Check WiGLE header
+        # Check if it's WiGLE format
         header_line = data[0]
-        if not header_line.startswith("WigleWifi-"):
-            print("[-] Invalid WiGLE header format")
-            return False
+        if header_line.startswith("WigleWifi-"):
+            # Check WiGLE column headers
+            column_line = data[1]
+            expected_columns = ["MAC", "SSID", "AuthMode", "FirstSeen", "Channel", 
+                              "RSSI", "CurrentLatitude", "CurrentLongitude", 
+                              "AltitudeMeters", "AccuracyMeters", "Type"]
             
-        # Check column headers
-        column_line = data[1]
-        expected_columns = ["MAC", "SSID", "AuthMode", "FirstSeen", "Channel", 
-                          "RSSI", "CurrentLatitude", "CurrentLongitude", 
-                          "AltitudeMeters", "AccuracyMeters", "Type"]
-        
-        columns = column_line.split(',')
-        if columns != expected_columns:
-            print("[-] Invalid column headers")
-            return False
+            columns = column_line.split(',')
+            if columns != expected_columns:
+                print("[-] Invalid WiGLE column headers")
+                return False
+                
+            print("[+] Data format validation passed (WiGLE format)")
+            return True
+        else:
+            # Check simple CSV format (current firmware format)
+            column_line = data[0]  # First line is header in simple CSV
+            expected_columns = ["MAC", "SSID", "AuthType", "FirstSeen", "Channel", 
+                              "RSSI", "CurrentLatitude", "CurrentLongitude", 
+                              "AltitudeMeters", "AccuracyMeters", "Type"]
             
-        print("[+] Data format validation passed")
-        return True
+            columns = column_line.split(',')
+            if len(columns) != len(expected_columns):
+                print("[-] Invalid CSV column count")
+                return False
+                
+            print("[+] Data format validation passed (Simple CSV format)")
+            return True
     
     def get_statistics(self, data):
         """Generate statistics from the wardriving data"""
-        if not data or len(data) <= 2:
+        if not data or len(data) <= 1:
             return None
+            
+        # Determine format and set start index
+        if data[0].startswith("WigleWifi-"):
+            # WiGLE format: skip header and column line
+            start_index = 2
+        else:
+            # Simple CSV format: skip header line only
+            start_index = 1
             
         wifi_count = 0
         bluetooth_count = 0
@@ -275,7 +294,7 @@ class WardrivingDataExtractor:
         unique_networks = set()  # Track unique MAC addresses
         signal_strengths = []
         
-        for line in data[2:]:  # Skip headers
+        for line in data[start_index:]:  # Skip headers
             parts = line.split(',')
             if len(parts) >= 11:
                 mac = parts[0]
@@ -300,7 +319,7 @@ class WardrivingDataExtractor:
         max_rssi = max(signal_strengths) if signal_strengths else 0
         
         stats = {
-            'total_entries': len(data) - 2,
+            'total_entries': len(data) - start_index,
             'wifi_networks': wifi_count,
             'bluetooth_devices': bluetooth_count,
             'unique_locations': len(unique_locations),

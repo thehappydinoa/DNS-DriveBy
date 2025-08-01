@@ -136,6 +136,16 @@ extract:
 		uv run python3 data_extractor.py; \
 	fi
 
+# Extract data with sudo (for permission issues)
+.PHONY: extract-sudo
+extract-sudo:
+	@echo "Extracting wardriving data with sudo..."
+	@if [ -n "$(PORT)" ]; then \
+		sudo /root/.local/bin/uv run python3 data_extractor.py -p $(PORT); \
+	else \
+		sudo /root/.local/bin/uv run python3 data_extractor.py; \
+	fi
+
 # Show statistics only
 .PHONY: stats
 stats:
@@ -144,6 +154,16 @@ stats:
 		uv run python3 data_extractor.py -p $(PORT) -s; \
 	else \
 		uv run python3 data_extractor.py -s; \
+	fi
+
+# Show statistics with sudo
+.PHONY: stats-sudo
+stats-sudo:
+	@echo "Getting wardriving statistics with sudo..."
+	@if [ -n "$(PORT)" ]; then \
+		sudo /root/.local/bin/uv run python3 data_extractor.py -p $(PORT) -s; \
+	else \
+		sudo /root/.local/bin/uv run python3 data_extractor.py -s; \
 	fi
 
 # Delete all wardriving data
@@ -208,11 +228,27 @@ backup:
 	uv run python3 data_extractor.py -o "backups/wardrive_backup_$$timestamp.csv" $(if $(PORT),-p $(PORT))
 	@echo "Backup complete!"
 
+# Backup current data with sudo
+.PHONY: backup-sudo
+backup-sudo:
+	@echo "Backing up current wardriving data with sudo..."
+	@mkdir -p backups
+	@timestamp=$$(date +%Y%m%d_%H%M%S); \
+	sudo /root/.local/bin/uv run python3 data_extractor.py -o "backups/wardrive_backup_$$timestamp.csv" $(if $(PORT),-p $(PORT))
+	@echo "Backup complete!"
+
 # Format data for WiGLE upload
 .PHONY: wigle-format
 wigle-format:
 	@echo "Extracting data in WiGLE format..."
 	@uv run python3 data_extractor.py -o "wigle_upload_$$(date +%Y%m%d_%H%M%S).csv" $(if $(PORT),-p $(PORT))
+	@echo "WiGLE format file ready for upload!"
+
+# Format data for WiGLE upload with sudo
+.PHONY: wigle-format-sudo
+wigle-format-sudo:
+	@echo "Extracting data in WiGLE format with sudo..."
+	@sudo /root/.local/bin/uv run python3 data_extractor.py -o "wigle_upload_$$(date +%Y%m%d_%H%M%S).csv" $(if $(PORT),-p $(PORT))
 	@echo "WiGLE format file ready for upload!"
 
 # Test connection to device
@@ -224,6 +260,17 @@ test-connection:
 		uv run python3 -c "import serial; s=serial.Serial('$(PORT)', $(BAUD_RATE), timeout=2); print('Connection OK' if s.is_open else 'Connection Failed'); s.close()"; \
 	else \
 		echo "No port specified. Use: make test-connection PORT=/dev/ttyUSB0"; \
+	fi
+
+# Test connection to device with sudo
+.PHONY: test-connection-sudo
+test-connection-sudo:
+	@echo "Testing connection to device with sudo..."
+	@if [ -n "$(PORT)" ]; then \
+		echo "Testing $(PORT)..."; \
+		sudo /root/.local/bin/uv run python3 -c "import serial; s=serial.Serial('$(PORT)', $(BAUD_RATE), timeout=2); print('Connection OK' if s.is_open else 'Connection Failed'); s.close()"; \
+	else \
+		echo "No port specified. Use: make test-connection-sudo PORT=/dev/ttyUSB0"; \
 	fi
 
 # Show device info
@@ -241,4 +288,44 @@ device-info:
 deploy-esp32: esp32 monitor
 
 .PHONY: deploy-esp8266  
-deploy-esp8266: esp8266 monitor 
+deploy-esp8266: esp8266 monitor
+
+# Show help
+.PHONY: help
+help:
+	@echo "DNS-DriveBy Wardriving Makefile"
+	@echo ""
+	@echo "Build and Upload:"
+	@echo "  make esp8266 PORT=/dev/ttyUSB0    - Build and upload to ESP8266"
+	@echo "  make esp32 PORT=/dev/ttyUSB0      - Build and upload to ESP32"
+	@echo "  make esp8266-compile              - Compile only (ESP8266)"
+	@echo "  make esp32-compile                - Compile only (ESP32)"
+	@echo ""
+	@echo "Data Extraction (Regular):"
+	@echo "  make extract PORT=/dev/ttyUSB0    - Extract wardriving data"
+	@echo "  make stats PORT=/dev/ttyUSB0      - Show statistics only"
+	@echo "  make backup PORT=/dev/ttyUSB0     - Backup data with timestamp"
+	@echo "  make wigle-format PORT=/dev/ttyUSB0 - Format for WiGLE upload"
+	@echo ""
+	@echo "Data Extraction (with sudo):"
+	@echo "  make extract-sudo PORT=/dev/ttyUSB0    - Extract with sudo"
+	@echo "  make stats-sudo PORT=/dev/ttyUSB0      - Stats with sudo"
+	@echo "  make backup-sudo PORT=/dev/ttyUSB0     - Backup with sudo"
+	@echo "  make wigle-format-sudo PORT=/dev/ttyUSB0 - WiGLE format with sudo"
+	@echo ""
+	@echo "Device Management:"
+	@echo "  make monitor PORT=/dev/ttyUSB0    - Open serial monitor"
+	@echo "  make delete-data PORT=/dev/ttyUSB0 - Delete all wardriving data"
+	@echo "  make test-connection PORT=/dev/ttyUSB0 - Test device connection"
+	@echo "  make test-connection-sudo PORT=/dev/ttyUSB0 - Test connection with sudo"
+	@echo "  make device-info                   - Scan for ESP devices"
+	@echo ""
+	@echo "Development:"
+	@echo "  make clean                         - Clean build artifacts"
+	@echo "  make update-version               - Update firmware version"
+	@echo "  make install-deps                 - Install Python dependencies"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make esp8266 PORT=/dev/ttyUSB0"
+	@echo "  make extract-sudo PORT=/dev/ttyUSB0"
+	@echo "  sudo make esp8266 PORT=/dev/ttyUSB0  # If you get permission errors" 

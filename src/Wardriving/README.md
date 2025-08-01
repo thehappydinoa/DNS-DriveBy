@@ -2,104 +2,126 @@
 
 This firmware repurposes your DNS DriveBy hardware for WiFi and Bluetooth wardriving, generating data compatible with WiGLE and other mapping platforms.
 
-## Features
+## 🚀 Quick Start
+
+### 1. Hardware Setup
+Your DNS DriveBy device should have:
+- ✅ ESP32/ESP8266 microcontroller
+- ✅ GPS module (working and getting signal)
+- ✅ SH1106 OLED display (optional - see SD Card section)
+- ✅ Battery/power source
+- ✅ USB cable for programming
+
+### 2. Software Setup
+```bash
+# Install dependencies
+cd src/Wardriving
+make install-deps
+
+# Configure for your board
+# Edit Wardriving.ino:
+#   ESP32: Keep #define BOARD_ESP32 uncommented
+#   ESP8266: Comment out #define BOARD_ESP32
+```
+
+### 3. Upload Firmware
+```bash
+# For ESP32
+make esp32 PORT=/dev/ttyUSB0
+
+# For ESP8266  
+make esp8266 PORT=/dev/ttyUSB0
+
+# 🚨 Upload Troubleshooting: If upload fails, double-click the button on your board quickly, then run upload again
+```
+
+### 4. Start Wardriving
+```bash
+# Monitor device
+make monitor PORT=/dev/ttyUSB0
+
+# Extract data when ready
+make extract PORT=/dev/ttyUSB0
+
+# Get statistics
+make stats PORT=/dev/ttyUSB0
+```
+
+## 📋 Features
 
 - **WiFi Scanning**: Detects all WiFi networks with MAC, SSID, encryption, signal strength, and location
 - **Bluetooth Scanning**: Detects Bluetooth devices (ESP32 only)
-- **GPS Integration**: Records precise coordinates and accurate UTC timestamps for all detected devices
-- **WiGLE Format**: Outputs data in standard WiGLE CSV format with real GPS time
-- **Real-time Display**: Shows scanning progress, statistics, and storage warnings on OLED display
-- **Smart Storage Management**: Automatic warnings at 400KB, stops logging at 500KB limit
-- **Storage Monitoring**: Real-time storage space tracking and alerts
-- **LittleFS Storage**: Stores data on device flash memory (ESP8266) or SPIFFS (ESP32)
+- **GPS Integration**: Records precise coordinates and accurate UTC timestamps
+- **WiGLE Format**: Outputs data in standard WiGLE CSV format
+- **Real-time Display**: Shows scanning progress and statistics (when display enabled)
+- **Smart Storage**: Automatic warnings and storage management
+- **SD Card Support**: Unlimited storage with SD card (enabled by default)
 
-## Hardware Compatibility
+## 🔧 Hardware Configuration
 
-### ESP32 (Recommended)
+### Current Default: SD Card Enabled (Display Removed)
 
-- WiFi scanning ✅
-- Bluetooth scanning ✅
-- Better performance and memory
+**Why?** SD card support is enabled by default, which requires removing the display due to pin conflicts.
 
-### ESP8266
+#### Pin Conflicts
+- **Display uses**: GPIO4 (SDA), GPIO5 (SCL)
+- **SD card needs**: GPIO4 (MOSI), GPIO5 (SCK) ⚠️ **CONFLICTS!**
 
-- WiFi scanning ✅
-- Bluetooth scanning ❌ (hardware limitation)
-- **Storage limit**: ~500KB internal flash (extract data regularly)
-
-## Installation
-
-### 1. Hardware Setup
-
-Your DNS DriveBy device should already have:
-
-- ESP32/ESP8266 microcontroller
-- GPS module connected
-- SH1106 OLED display
-- Power supply (battery)
-
-### 2. Firmware Upload
-
-#### Option A: Arduino IDE
-
-1. Install required libraries:
-
-   ```
-   - TinyGPS++
-   - ESP32/ESP8266WiFi
-   - BLE libraries (ESP32 only)
-   - SH1106Wire
-   ```
-
-2. Select your board:
-   - **ESP32**: ESP32 Dev Module
-   - **ESP8266**: NodeMCU 1.0 or Wemos D1 Mini
-
-3. Configure the firmware:
-   - For ESP8266: Comment out `#define BOARD_ESP32`
-   - For ESP32: Leave `#define BOARD_ESP32` uncommented
-
-4. Upload `Wardriving.ino` to your device
-
-#### Option B: PlatformIO
-
-```bash
-# Install PlatformIO
-pip install platformio
-
-# Configure for your board in platformio.ini
-# Upload firmware
-pio run --target upload
+#### SD Card Setup
+```
+SD Card Module    ESP8266 D1 Mini
+VCC        --->   3.3V
+GND        --->   GND
+MISO       --->   D6 (GPIO12)
+MOSI       --->   D7 (GPIO13)
+SCK        --->   D5 (GPIO14)
+CS         --->   D8 (GPIO15)
 ```
 
-### 3. Configuration
+#### Status Monitoring (No Display)
+- **Serial Monitor**: Real-time status and debugging
+- **STATS Command**: Send `STATS` via serial to check storage
+- **Data Extraction**: Use `data_extractor.py` to get wardriving data
 
-Edit the following in `Wardriving.ino` if needed:
+### Alternative: Display Enabled (SD Card Disabled)
 
+If you prefer visual feedback over unlimited storage:
+
+#### 1. Disable SD Card Support
 ```cpp
-// GPS Configuration
-#define GPS_BAUD 9600
+// In Wardriving.ino, change:
+#define ENABLE_SD_CARD
 
-// Display pins (adjust for your wiring)
-SH1106Wire display(0x3C, 4, 5); // I2C address, SDA, SCL
-
-// Scan timing
-delay(5000); // 5 second delay between scans
+// To:
+// #define ENABLE_SD_CARD
 ```
 
-## Usage
+#### 2. Display Setup
+```
+Display Module     ESP8266 D1 Mini
+VCC         --->   3.3V
+GND         --->   GND
+SDA         --->   D2 (GPIO4)
+SCL         --->   D1 (GPIO5)
+```
+
+#### 3. Storage Limitations
+- **500KB Limit**: Internal flash storage only
+- **Regular Extraction**: Extract data frequently
+- **Visual Feedback**: Status shown on display
+
+## 📊 Usage
 
 ### Basic Operation
 
-1. **Power On**: The device will initialize and search for GPS signal
-2. **GPS Lock**: Wait for GPS lock (shown on display)
+1. **Power On**: Device initializes and searches for GPS signal
+2. **GPS Lock**: Wait for GPS lock (shown on display or serial)
 3. **Wardriving**: Device automatically scans WiFi and Bluetooth
-4. **Data Collection**: All data stored in `/wardrive_data.csv` on device
+4. **Data Collection**: All data stored in `/wardrive_data.csv`
 
-### Display Information
+### Display Information (when enabled)
 
 The OLED shows real-time stats:
-
 ```
 GPS: 8 sats          <- GPS satellite count
 WiFi: 1,234          <- Total WiFi networks found
@@ -110,66 +132,63 @@ Scans: 42            <- Number of scan cycles completed
 
 ### Storage Management
 
-The device automatically manages storage space:
+#### SD Card Configuration (Default)
+- ✅ **Unlimited storage**: No storage limits
+- ✅ **Data persists**: Across power cycles
+- ❌ **No visual feedback**: Must use serial monitor
 
-#### ⚠️ **Storage Warnings**
-- **400KB reached**: Display shows "LOW STORAGE" warning
-- **500KB reached**: Stops logging, displays "STORAGE FULL!"
-- **No SD card**: Shows warning about limited internal storage
-
-#### 📊 **Monitor Storage**
-```bash
-# Check storage status via serial
-STATS
-```
-
-Output includes:
-```
-Storage Free: 245760 bytes
-CSV File Size: 156432 bytes
-Storage Full: false
-```
-
-#### 🚨 **When Storage is Full**
-1. **Data logging stops** (but scanning continues for serial monitoring)
-2. **Extract data immediately**: Use `python3 data_extractor.py`
-3. **Clear data**: Send `DELETE_DATA` command to reset
-4. **Resume logging**: Automatic after clearing data
+#### LittleFS Configuration (Display Mode)
+- ⚠️ **500KB limit**: Internal flash storage only
+- ⚠️ **400KB warning**: Display shows "LOW STORAGE"
+- 🚨 **500KB full**: Stops logging, shows "STORAGE FULL!"
 
 ### Data Extraction
 
-Use the included Python tool to extract data:
-
 ```bash
 # Auto-detect device and extract data
-python3 data_extractor.py
-
-# Specify port manually
-python3 data_extractor.py -p /dev/ttyUSB0
+make extract PORT=/dev/ttyUSB0
 
 # Show statistics only
-python3 data_extractor.py -s
+make stats PORT=/dev/ttyUSB0
 
 # Save to specific file
-python3 data_extractor.py -o my_wardrive_data.csv
+make extract PORT=/dev/ttyUSB0 -o my_wardrive_data.csv
+
+# Create WiGLE upload file
+make wigle-format PORT=/dev/ttyUSB0
+
+# Backup with timestamp
+make backup PORT=/dev/ttyUSB0
 ```
 
-## Data Format
+### Sudo Commands (for permission issues)
+
+```bash
+# Extract data with sudo
+make extract-sudo PORT=/dev/ttyUSB0
+
+# Get statistics with sudo
+make stats-sudo PORT=/dev/ttyUSB0
+
+# Test connection with sudo
+make test-connection-sudo PORT=/dev/ttyUSB0
+```
+
+## 📁 Data Format
 
 The output CSV follows WiGLE standards:
 
 ```csv
-WigleWifi-1.4,appRelease=1.0,model=DNS-DriveBy-Wardrive,release=1.0,device=ESP32-Wardriver,display=SH1106,board=ESP32,brand=Custom
-MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type
-AA:BB:CC:DD:EE:FF,MyNetwork,[WPA2-PSK-CCMP+TKIP][ESS],2024-01-01 12:00:00,6,-45,33.12345678,-117.12345678,0,10,WIFI
-11:22:33:44:55:66,SomeDevice,[BT],2024-01-01 12:00:01,-1,-67,33.12345678,-117.12345678,0,10,BT
+MAC,SSID,AuthType,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type
+AA:BB:CC:DD:EE:FF,MyNetwork,WPA2,2024-01-01 12:00:00,6,-45,33.12345678,-117.12345678,0,10,WIFI
+11:22:33:44:55:66,SomeDevice,BT,2024-01-01 12:00:01,-1,-67,33.12345678,-117.12345678,0,10,BT
 ```
 
 ### Column Descriptions
 
 - **MAC**: Device MAC address
-- **SSID**: Network name (for WiFi) or device name (for Bluetooth)
-- **AuthMode**: Security/encryption type
+- **SSID**: Network name (WiFi) or device name (Bluetooth)
+- **AuthType**: Security/encryption type
 - **FirstSeen**: Timestamp when first detected
 - **Channel**: WiFi channel (-1 for Bluetooth)
 - **RSSI**: Signal strength in dBm
@@ -178,44 +197,7 @@ AA:BB:CC:DD:EE:FF,MyNetwork,[WPA2-PSK-CCMP+TKIP][ESS],2024-01-01 12:00:00,6,-45,
 - **AccuracyMeters**: GPS accuracy estimate
 - **Type**: WIFI or BT
 
-## Uploading to WiGLE
-
-1. Extract data using `data_extractor.py`
-2. Visit [WiGLE.net](https://wigle.net)
-3. Create account and go to "Upload"
-4. Upload your CSV file
-5. Wait for processing and view on map
-
-## Troubleshooting
-
-### GPS Issues
-
-- **No GPS fix**: Ensure GPS module is connected and has clear sky view
-- **Wrong coordinates**: Check GPS module wiring and antenna
-
-### WiFi Scanning Issues
-
-- **No networks found**: Check WiFi antenna connection
-- **Missing networks**: Some networks may be hidden or using non-standard channels
-
-### Memory Issues
-
-- **Device crashes**: Reduce scan frequency or implement data streaming
-- **File full**: Extract data regularly or increase SPIFFS partition size
-
-### ESP8266 Specific
-
-- **Memory limitations**: Consider reducing scan frequency or buffer sizes
-- **No Bluetooth**: This is expected - ESP8266 doesn't support Bluetooth
-
-## Performance Tips
-
-1. **Optimize scan timing**: Adjust delay between scans based on movement speed
-2. **Regular data extraction**: Don't let SPIFFS fill up completely
-3. **GPS accuracy**: Wait for good GPS lock before starting scans
-4. **Power management**: Monitor battery level during long sessions
-
-## Advanced Configuration
+## 🔧 Advanced Configuration
 
 ### Custom Scan Intervals
 
@@ -228,27 +210,18 @@ delay(10000); // 10 seconds for slower scanning
 
 ### Different Storage Options
 
-- **SD Card**: Modify code to use SD card instead of SPIFFS
-- **Serial Streaming**: Send data directly over serial instead of storing
+- **SD Card**: Unlimited storage (default)
+- **LittleFS**: 500KB limit (display mode)
+- **Serial Streaming**: Send data directly over serial
 
 ### Additional Protocols
 
-The framework can be extended to scan other protocols:
-
+The framework can be extended to scan:
 - **LoRa devices**
 - **Zigbee networks**
 - **Cell towers**
 
-## Contributing
-
-Feel free to submit improvements:
-
-- Better power management
-- Additional protocol support
-- Enhanced data formats
-- Performance optimizations
-
-## 🔧 Troubleshooting
+## 🛠️ Troubleshooting
 
 ### Upload Issues
 
@@ -258,21 +231,37 @@ If you get `Failed to connect to ESP8266: Timed out waiting for packet header`:
 
 1. **Double-click the button** on the board quickly
 2. **Immediately run** the upload command:
-
    ```bash
-   arduino-cli upload -b esp8266:esp8266:d1_mini --port /dev/cu.usbserial-XXX .
+   make esp8266 PORT=/dev/ttyUSB0
    ```
-
-3. The double-click puts the ESP8266 into flash mode manually
 
 #### Other Common Issues
 
 - **Connection failed**: Check USB cable and port
-- **Permission denied**: Add user to dialout group (Linux)  
+- **Permission denied**: Use sudo commands or add user to dialout group
 - **Port not found**: Try different USB port or cable
-- **Compilation errors**: Ensure all libraries are installed
-- **Display not working**: Check memory usage in compilation output
-- **No serial output**: Verify baud rate is 115200
+- **Compilation errors**: Run `make install-deps`
+
+### GPS Issues
+
+- **No GPS fix**: Ensure GPS module is connected and has clear sky view
+- **Wrong coordinates**: Check GPS module wiring and antenna
+- **Slow fix**: Wait 2-3 minutes for cold start
+
+### WiFi Scanning Issues
+
+- **No networks found**: Check WiFi antenna connection
+- **Missing networks**: Some networks may be hidden or using non-standard channels
+
+### Memory Issues
+
+- **Device crashes**: Reduce scan frequency or implement data streaming
+- **File full**: Extract data regularly or use SD card
+
+### ESP8266 Specific
+
+- **Memory limitations**: Consider reducing scan frequency or buffer sizes
+- **No Bluetooth**: This is expected - ESP8266 doesn't support Bluetooth
 
 ### Display Issues
 
@@ -287,9 +276,29 @@ If you get `Failed to connect to ESP8266: Timed out waiting for packet header`:
 - If RAM usage >50%, reduce `MAX_STORED_NETWORKS` in firmware
 - Monitor compilation output for memory warnings
 
-## License
+## 📈 Performance Tips
 
-Based on the original DNS DriveBy project. Use for educational and research purposes.
+1. **Optimize scan timing**: Adjust delay between scans based on movement speed
+2. **Regular data extraction**: Don't let storage fill up completely
+3. **GPS accuracy**: Wait for good GPS lock before starting scans
+4. **Power management**: Monitor battery level during long sessions
+
+## 🗂️ Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `make esp32` | Build and upload for ESP32 |
+| `make esp8266` | Build and upload for ESP8266 |
+| `make monitor` | Open serial monitor |
+| `make extract` | Download data from device |
+| `make stats` | Show quick statistics |
+| `make backup` | Backup data with timestamp |
+| `make wigle-format` | Create WiGLE upload file |
+| `make extract-sudo` | Extract data with sudo |
+| `make stats-sudo` | Get statistics with sudo |
+| `make test-connection` | Test device connection |
+| `make clean` | Clean build files |
+| `make help` | Show all available commands |
 
 ## 🧹 Repository Maintenance
 
@@ -306,6 +315,41 @@ make clean
 # - Backup files
 ```
 
-## Credits
+## 📤 Uploading to WiGLE
+
+1. Extract data using `make extract` or `make wigle-format`
+2. Visit [WiGLE.net](https://wigle.net)
+3. Create account and go to "Upload"
+4. Upload your CSV file
+5. Wait for processing and view on map
+
+## 🤝 Contributing
+
+Feel free to submit improvements:
+
+- Better power management
+- Additional protocol support
+- Enhanced data formats
+- Performance optimizations
+
+## 📄 License
+
+Based on the original DNS DriveBy project. Use for educational and research purposes.
+
+## 👨‍💻 Credits
 
 - Original DNS DriveBy design by Alex Lynd
+
+## 📞 Need Help?
+
+Common issues and solutions:
+
+1. **Device not detected**: Check USB cable and drivers
+2. **GPS takes forever**: Go outside, wait patiently
+3. **No Bluetooth on ESP8266**: This is normal, ESP8266 doesn't support BT
+4. **Memory issues**: Extract data more frequently
+5. **Compilation errors**: Run `make install-deps`
+6. **SD card not detected**: Check wiring and format as FAT32
+7. **Display not working**: Check pin conflicts with SD card
+
+Happy wardriving! 🚗📡

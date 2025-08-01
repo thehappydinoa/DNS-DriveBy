@@ -1,8 +1,9 @@
 //#define BOARD_ESP32 // Comment this out if using ESP8266
 
 // SD Card Support (enabled by default)
-// NOTE: SD card requires hardware modifications due to pin conflicts
-// Comment out the line below to disable SD card support
+// NOTE: SD card requires removing the display due to pin conflicts
+// The display uses GPIO4/5 which conflict with SD card SPI pins
+// Comment out the line below to disable SD card support and keep the display
 #define ENABLE_SD_CARD
 
 // Firmware Version Information
@@ -37,10 +38,9 @@ String csvFilename = "/wardrive_data.csv";
 String sdCsvFilename = "/wardrive_data.csv"; // SD card path
 
 // SD Card Configuration (ESP8266 D1 Mini)
-// NOTE: These pins conflict with the display! You'll need to either:
-// 1. Change display pins to different GPIO pins, or
-// 2. Use different SD card pins, or  
-// 3. Use ESP32 instead of ESP8266
+// NOTE: Display must be removed when using SD card due to pin conflicts
+// Display uses GPIO4/5 which conflict with SD card SPI pins
+// If you want to keep the display, disable SD card support instead
 #define SD_CS D8    // Chip Select for SD card
 #define SD_MOSI D7  // MOSI pin  
 #define SD_MISO D6  // MISO pin  
