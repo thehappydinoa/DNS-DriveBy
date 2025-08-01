@@ -1,13 +1,22 @@
 //#define BOARD_ESP32 // Comment this out if using ESP8266
 
+// SD Card Support (enabled by default)
+// NOTE: SD card requires hardware modifications due to pin conflicts
+// Comment out the line below to disable SD card support
+#define ENABLE_SD_CARD
+
 // Firmware Version Information
-#define FIRMWARE_VERSION "2.2.0-5a3f058"
+#define FIRMWARE_VERSION "2.2.0-ecc669f"
 #define FIRMWARE_NAME "DNS-DriveBy Wardriving"
 #define BUILD_DATE __DATE__
 #define BUILD_TIME __TIME__
 
 #include <ESP8266WiFi.h>
 #include <LittleFS.h>
+#ifdef ENABLE_SD_CARD
+#include <SD.h>
+#include <SPI.h>
+#endif
 #include <SH1106Wire.h>
 #include <Wire.h>
 #include <TinyGPSPlus.h>
@@ -24,6 +33,25 @@ SH1106Wire display(0x3C, 4, 5);  // Correct pins!
 
 // Data Storage
 String csvFilename = "/wardrive_data.csv";
+#ifdef ENABLE_SD_CARD
+String sdCsvFilename = "/wardrive_data.csv"; // SD card path
+
+// SD Card Configuration (ESP8266 D1 Mini)
+// NOTE: These pins conflict with the display! You'll need to either:
+// 1. Change display pins to different GPIO pins, or
+// 2. Use different SD card pins, or  
+// 3. Use ESP32 instead of ESP8266
+#define SD_CS D8    // Chip Select for SD card
+#define SD_MOSI D7  // MOSI pin  
+#define SD_MISO D6  // MISO pin  
+#define SD_SCK D5   // SCK pin (conflicts with display SCL!)
+
+// Storage type tracking
+bool usingSDCard = false; // Always false when SD card is disabled
+#ifdef ENABLE_SD_CARD
+bool sdCardAvailable = false;
+#endif
+#endif
 
 // Stats tracking
 struct WardrivingStats {
@@ -95,50 +123,65 @@ void checkStorageSpace() {
   if (millis() - lastStorageCheck < 30000) return;
   lastStorageCheck = millis();
   
-  FSInfo fs_info;
-  LittleFS.info(fs_info);
-  
-  size_t freeSpace = fs_info.totalBytes - fs_info.usedBytes;
-  
-  // Check if CSV file exists and get its size
-  File dataFile = LittleFS.open(csvFilename, "r");
-  size_t fileSize = 0;
-  if (dataFile) {
-    fileSize = dataFile.size();
-    dataFile.close();
-  }
-  
-  Serial.printf("[STORAGE] Free: %d bytes, CSV size: %d bytes\n", freeSpace, fileSize);
-  
-  // Check for storage full condition
-  if (freeSpace < MIN_FREE_SPACE || fileSize > MAX_DATA_FILE_SIZE) {
-    if (!storageFull) {
-      storageFull = true;
-      Serial.println("[WARNING] Storage limit reached - stopping data logging!");
+  // Only check storage limits for LittleFS (SD cards have unlimited space)
+#ifdef ENABLE_SD_CARD
+  if (!usingSDCard) {
+#endif
+    FSInfo fs_info;
+    LittleFS.info(fs_info);
+    
+    size_t freeSpace = fs_info.totalBytes - fs_info.usedBytes;
+    
+    // Check if CSV file exists and get its size
+    File dataFile = LittleFS.open(csvFilename, "r");
+    size_t fileSize = 0;
+    if (dataFile) {
+      fileSize = dataFile.size();
+      dataFile.close();
+    }
+    
+    Serial.printf("[STORAGE] Free: %d bytes, CSV size: %d bytes\n", freeSpace, fileSize);
+    
+    // Check for storage full condition
+    if (freeSpace < MIN_FREE_SPACE || fileSize > MAX_DATA_FILE_SIZE) {
+      if (!storageFull) {
+        storageFull = true;
+        Serial.println("[WARNING] Storage limit reached - stopping data logging!");
+        
+        display.clear();
+        display.drawString(0, 0, "STORAGE FULL!");
+        display.drawString(0, 12, "Data logging");
+        display.drawString(0, 24, "stopped");
+        display.drawString(0, 36, "Extract data:");
+        display.drawString(0, 48, "READ_FILE cmd");
+        display.display();
+        delay(5000);
+      }
+    }
+    // Check for warning threshold
+    else if ((freeSpace < (MIN_FREE_SPACE * 2) || fileSize > STORAGE_WARNING_THRESHOLD) && !storageWarningShown) {
+      storageWarningShown = true;
+      Serial.println("[WARNING] Storage getting full - extract data soon!");
       
       display.clear();
-      display.drawString(0, 0, "STORAGE FULL!");
-      display.drawString(0, 12, "Data logging");
-      display.drawString(0, 24, "stopped");
-      display.drawString(0, 36, "Extract data:");
-      display.drawString(0, 48, "READ_FILE cmd");
+      display.drawString(0, 0, "LOW STORAGE!");
+      display.drawString(0, 12, "Extract data");
+      display.drawString(0, 24, "soon");
+      display.drawString(0, 36, String(freeSpace/1000) + "KB free");
       display.display();
-      delay(5000);
+      delay(3000);
+    }
+#ifdef ENABLE_SD_CARD
+  } else {
+    // SD card - no storage limits to check
+    if (storageFull) {
+      storageFull = false; // Reset if we're now using SD card
+    }
+    if (storageWarningShown) {
+      storageWarningShown = false; // Reset if we're now using SD card
     }
   }
-  // Check for warning threshold
-  else if ((freeSpace < (MIN_FREE_SPACE * 2) || fileSize > STORAGE_WARNING_THRESHOLD) && !storageWarningShown) {
-    storageWarningShown = true;
-    Serial.println("[WARNING] Storage getting full - extract data soon!");
-    
-    display.clear();
-    display.drawString(0, 0, "LOW STORAGE!");
-    display.drawString(0, 12, "Extract data");
-    display.drawString(0, 24, "soon");
-    display.drawString(0, 36, String(freeSpace/1000) + "KB free");
-    display.display();
-    delay(3000);
-  }
+#endif
 }
 
 void showStorageWarning() {
@@ -253,10 +296,9 @@ void updateGPS() {
         stats.currentHour = gps.time.hour();
         stats.currentMinute = gps.time.minute();
         stats.currentSecond = gps.time.second();
-        
         if (!stats.timeValid) {
           stats.timeValid = true;
-          Serial.printf("[+] GPS Time: %04d-%02d-%02d %02d:%02d:%02d UTC\n",
+          Serial.printf("[+] GPS Time: %04d-%02d-%02d %02d:%02d:%02d\n",
                        stats.currentYear, stats.currentMonth, stats.currentDay,
                        stats.currentHour, stats.currentMinute, stats.currentSecond);
         }
@@ -264,11 +306,151 @@ void updateGPS() {
     }
   }
   
-  // GPS retry every 2 minutes
-  if (!stats.gpsActive && (millis() - lastGPSRetry > 120000)) {
-    Serial.println("[+] Retrying GPS...");
+  // GPS retry mechanism
+  if (!stats.gpsActive && millis() - lastGPSRetry > 30000) {
+    Serial.println("[-] No GPS fix - retrying...");
     lastGPSRetry = millis();
   }
+}
+
+#ifdef ENABLE_SD_CARD
+bool initializeSDCard() {
+  Serial.println("[+] Initializing SD card...");
+  Serial.printf("[DEBUG] SD Card Pins - CS: %d, MOSI: %d, MISO: %d, SCK: %d\n", 
+                SD_CS, SD_MOSI, SD_MISO, SD_SCK);
+  
+  // Configure SPI for SD card (ESP8266 doesn't use begin() with parameters)
+  SPI.begin();
+  Serial.println("[DEBUG] SPI initialized");
+  
+  // Try to initialize SD card
+  Serial.printf("[DEBUG] Attempting to initialize SD card with CS pin %d\n", SD_CS);
+  if (SD.begin(SD_CS)) {
+    Serial.println("[DEBUG] SD.begin() returned true");
+    
+    // ESP8266 SD library doesn't have cardType() or cardSize() methods
+    // We'll just check if the card is accessible by trying to open a test file
+    Serial.println("[DEBUG] Testing SD card access...");
+    File testFile = SD.open("/test.txt", FILE_WRITE);
+    if (testFile) {
+      testFile.println("test");
+      testFile.close();
+      Serial.println("[DEBUG] Test file write successful");
+      
+      // Try to read the test file
+      File readFile = SD.open("/test.txt", FILE_READ);
+      if (readFile) {
+        String content = readFile.readString();
+        readFile.close();
+        Serial.printf("[DEBUG] Test file read successful, content: %s\n", content.c_str());
+      } else {
+        Serial.println("[DEBUG] Test file read failed");
+      }
+      
+      SD.remove("/test.txt"); // Clean up test file
+      Serial.println("[+] SD card detected and accessible");
+      return true;
+    } else {
+      Serial.println("[-] SD card not accessible - cannot write test file");
+      return false;
+    }
+  } else {
+    Serial.println("[-] SD card initialization failed - SD.begin() returned false");
+    Serial.println("[DEBUG] Possible causes:");
+    Serial.println("[DEBUG] 1. SD card not connected");
+    Serial.println("[DEBUG] 2. Wrong CS pin");
+    Serial.println("[DEBUG] 3. Power supply issues");
+    Serial.println("[DEBUG] 4. SD card not formatted as FAT32");
+    Serial.println("[DEBUG] 5. Pin conflicts with other devices");
+    return false;
+  }
+}
+#endif
+
+bool initializeStorage() {
+#ifdef ENABLE_SD_CARD
+  // Try SD card first
+  sdCardAvailable = initializeSDCard();
+  
+  if (sdCardAvailable) {
+    usingSDCard = true;
+    Serial.println("[+] Using SD card for storage");
+    
+    // Create CSV header on SD card if it doesn't exist
+    if (!SD.exists(sdCsvFilename)) {
+      File dataFile = SD.open(sdCsvFilename, FILE_WRITE);
+      if (dataFile) {
+        dataFile.println("MAC,SSID,AuthType,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
+        dataFile.close();
+        Serial.println("[+] Created CSV file on SD card");
+      }
+    }
+    
+    return true;
+  } else {
+    // Fall back to LittleFS
+    usingSDCard = false;
+    Serial.println("[+] Falling back to LittleFS storage");
+    
+    if (!LittleFS.begin()) {
+      Serial.println("[-] LittleFS mount failed");
+      return false;
+    }
+    
+    // Create CSV header in LittleFS if it doesn't exist
+    if (!LittleFS.exists(csvFilename)) {
+      File dataFile = LittleFS.open(csvFilename, "w");
+      if (dataFile) {
+        dataFile.println("MAC,SSID,AuthType,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
+        dataFile.close();
+        Serial.println("[+] Created CSV file in LittleFS");
+      }
+    }
+    
+    return true;
+  }
+#else
+  // SD card support disabled - use LittleFS only
+  Serial.println("[+] Using LittleFS storage (SD card support disabled)");
+  
+  if (!LittleFS.begin()) {
+    Serial.println("[-] LittleFS mount failed");
+    return false;
+  }
+  
+  // Create CSV header in LittleFS if it doesn't exist
+  if (!LittleFS.exists(csvFilename)) {
+    File dataFile = LittleFS.open(csvFilename, "w");
+    if (dataFile) {
+      dataFile.println("MAC,SSID,AuthType,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
+      dataFile.close();
+      Serial.println("[+] Created CSV file in LittleFS");
+    }
+  }
+  
+  return true;
+#endif
+}
+
+void showStorageInfo() {
+  #ifdef ENABLE_SD_CARD
+  if (usingSDCard) {
+    display.clear();
+    display.drawString(0, 0, "SD CARD DETECTED!");
+    display.drawString(0, 12, "Using SD storage");
+    display.drawString(0, 24, "Unlimited space");
+    display.drawString(0, 36, "Extract via USB");
+    display.drawString(0, 48, "or remove card");
+    display.display();
+    
+    Serial.println("[+] SD card detected - unlimited storage available");
+    delay(3000);
+  } else {
+    showStorageWarning();
+  }
+  #else
+  showStorageWarning();
+  #endif
 }
 
 void scanWiFi() {
@@ -282,7 +464,15 @@ void scanWiFi() {
     
     // Only open file for writing if storage isn't full
     if (!storageFull) {
+      #ifdef ENABLE_SD_CARD
+      if (usingSDCard) {
+        dataFile = SD.open(sdCsvFilename, FILE_WRITE);
+      } else {
+        dataFile = LittleFS.open(csvFilename, "a");
+      }
+      #else
       dataFile = LittleFS.open(csvFilename, "a");
+      #endif
     }
     
     for (int i = 0; i < networksFound; i++) {
@@ -341,7 +531,17 @@ void handleSerialCommands() {
       String filename = command.substring(10);
       Serial.println("FILE_START");
       
-      File file = LittleFS.open(filename, "r");
+      File file;
+      #ifdef ENABLE_SD_CARD
+      if (usingSDCard) {
+        file = SD.open(filename, FILE_READ);
+      } else {
+        file = LittleFS.open(filename, "r");
+      }
+      #else
+      file = LittleFS.open(filename, "r");
+      #endif
+      
       if (file) {
         while (file.available()) {
           Serial.println(file.readStringUntil('\n'));
@@ -356,6 +556,11 @@ void handleSerialCommands() {
       Serial.println("Total Scans: " + String(stats.totalScans));
       Serial.println("GPS Active: " + String(stats.gpsActive ? "true" : "false"));
       Serial.println("GPS Time Valid: " + String(stats.timeValid ? "true" : "false"));
+#ifdef ENABLE_SD_CARD
+      Serial.println("Using SD Card: " + String(usingSDCard ? "true" : "false"));
+#else
+      Serial.println("Using SD Card: false (disabled)");
+#endif
       
       if (stats.timeValid) {
         String currentTime = getCurrentTimestamp();
@@ -363,6 +568,33 @@ void handleSerialCommands() {
       }
       
       // Add storage info
+      #ifdef ENABLE_SD_CARD
+      if (usingSDCard) {
+        // ESP8266 SD library doesn't have cardSize() or usedBytes() methods
+        // We'll just show that SD card is being used
+        File dataFile = SD.open(sdCsvFilename, FILE_READ);
+        size_t fileSize = dataFile ? dataFile.size() : 0;
+        if (dataFile) dataFile.close();
+        
+        Serial.println("Storage Type: SD Card");
+        Serial.println("Card Size: Unknown (ESP8266 limitation)");
+        Serial.println("Storage Free: Unlimited");
+        Serial.println("CSV File Size: " + String(fileSize) + " bytes");
+        Serial.println("Storage Full: false (unlimited)");
+      } else {
+        FSInfo fs_info;
+        LittleFS.info(fs_info);
+        size_t freeSpace = fs_info.totalBytes - fs_info.usedBytes;
+        File dataFile = LittleFS.open(csvFilename, "r");
+        size_t fileSize = dataFile ? dataFile.size() : 0;
+        if (dataFile) dataFile.close();
+        
+        Serial.println("Storage Type: LittleFS (Internal)");
+        Serial.println("Storage Free: " + String(freeSpace) + " bytes");
+        Serial.println("CSV File Size: " + String(fileSize) + " bytes");
+        Serial.println("Storage Full: " + String(storageFull ? "true" : "false"));
+      }
+      #else
       FSInfo fs_info;
       LittleFS.info(fs_info);
       size_t freeSpace = fs_info.totalBytes - fs_info.usedBytes;
@@ -370,13 +602,23 @@ void handleSerialCommands() {
       size_t fileSize = dataFile ? dataFile.size() : 0;
       if (dataFile) dataFile.close();
       
+      Serial.println("Storage Type: LittleFS (Internal)");
       Serial.println("Storage Free: " + String(freeSpace) + " bytes");
       Serial.println("CSV File Size: " + String(fileSize) + " bytes");
       Serial.println("Storage Full: " + String(storageFull ? "true" : "false"));
+      #endif
       Serial.println("STATS_END");
       
     } else if (command == "DELETE_DATA") {
+      #ifdef ENABLE_SD_CARD
+      if (usingSDCard) {
+        SD.remove(sdCsvFilename);
+      } else {
+        LittleFS.remove(csvFilename);
+      }
+      #else
       LittleFS.remove(csvFilename);
+      #endif
       stats.wifiNetworks = 0;
       stats.totalScans = 0;
       Serial.println("DATA_DELETED");
@@ -403,14 +645,14 @@ void setup() {
   // Initialize display with correct pins
   initializeDisplay();
   
-  // Initialize file system
-  if (!initializeFileSystem()) {
+  // Initialize storage (SD card or LittleFS)
+  if (!initializeStorage()) {
     Serial.println("[-] FATAL: Storage initialization failed");
     return;
   }
   
-  // Show storage warning (no SD card on ESP8266 D1 Mini)
-  showStorageWarning();
+  // Show storage info (SD card or warning)
+  showStorageInfo();
   delay(3000);
   
   // Initialize WiFi
@@ -423,20 +665,18 @@ void setup() {
   Serial.println("[+] GPS initialized (background mode)");
   lastGPSRetry = millis();
   
-  // Write CSV header if file doesn't exist
-  if (!LittleFS.exists(csvFilename)) {
-    File dataFile = LittleFS.open(csvFilename, "w");
-    if (dataFile) {
-      dataFile.println("MAC,SSID,AuthType,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
-      dataFile.close();
-      Serial.println("[+] Created CSV file with header");
-    }
-  }
-  
   Serial.println("[+] Wardriving ready!");
   Serial.println("[+] Scanning every 5 seconds...");
   Serial.println("[+] Display updates every 10 seconds (memory optimized)");
-  Serial.println("[+] Storage limit: 500KB - extract data regularly");
+  #ifdef ENABLE_SD_CARD
+  if (usingSDCard) {
+    Serial.println("[+] Using SD card storage - unlimited space");
+  } else {
+    Serial.println("[+] Using internal storage - limit 500KB, extract data regularly");
+  }
+  #else
+  Serial.println("[+] Using internal storage - limit 500KB, extract data regularly");
+  #endif
   Serial.println("[+] Send 'STATS' to check storage, 'DISPLAY_RESET' to reset display");
 }
 

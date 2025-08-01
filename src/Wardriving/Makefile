@@ -92,6 +92,13 @@ esp8266: check-arduino-cli update-version
 		echo "If you get permission errors, try: sudo make esp8266 PORT=/dev/ttyUSB0"; \
 	fi
 
+# ESP8266 Compile only
+.PHONY: esp8266-compile
+esp8266-compile: check-arduino-cli update-version
+	@echo "Building for ESP8266..."
+	@sed -i.bak 's|^#define BOARD_ESP32|//#define BOARD_ESP32|' Wardriving.ino
+	arduino-cli compile -b esp8266:esp8266:d1_mini Wardriving.ino
+
 # ESP8266 Upload only
 .PHONY: esp8266-upload
 esp8266-upload: check-arduino-cli
